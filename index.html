@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BisnisPro - Simulator BEP & Pinjaman</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS untuk Ekspor Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #f1f5f9;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .fade-in { animation: fadeIn 0.3s ease forwards; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .table-scroll::-webkit-scrollbar-track { background: #f8fafc; border-radius: 8px; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+
+        /* ================= CSS KHUSUS CETAK PDF ================= */
+        @media print {
+            body { 
+                background: white !important; 
+                background-image: none !important;
+            }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            
+            /* Melebarkan area hasil cetak */
+            .lg\:col-span-8 { grid-column: span 12 / span 12 !important; }
+            
+            /* Memastikan grafik tidak terpotong */
+            canvas { max-width: 100% !important; max-height: 300px !important; }
+            
+            /* Menghindari elemen terpotong di halaman baru */
+            .print-avoid-break { page-break-inside: avoid; }
+            
+            /* Menghapus shadow dan border agar tinta lebih hemat */
+            .shadow-lg, .shadow-xl { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Navigasi -->
+    <nav class="glass-nav sticky top-0 z-40 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center gap-3 justify-center md:justify-start">
+                <div class="bg-gradient-to-br from-indigo-600 to-blue-500 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                </div>
+                <h1 class="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-blue-600">
+                    BisnisPro Up
+                </h1>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+        
+        <!-- Header & Tabs -->
+        <div class="mb-10 text-center md:text-left no-print">
+            <h2 class="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">Simulator Bisnis Terpadu</h2>
+            <p class="text-slate-500 text-lg mb-8">Rencanakan target penjualan dan proyeksikan cicilan modal usaha Anda.</p>
+            
+            <!-- Tab Navigation -->
+            <div class="flex justify-center md:justify-start space-x-2 md:space-x-8 border-b-2 border-slate-200">
+                <button onclick="switchTab('bep')" id="btn-tab-bep" class="pb-3 px-2 md:px-4 font-bold text-indigo-600 border-b-4 border-indigo-600 transition-all">
+                    Kalkulator BEP
+                </button>
+                <button onclick="switchTab('loan')" id="btn-tab-loan" class="pb-3 px-2 md:px-4 font-semibold text-slate-400 hover:text-slate-600 border-b-4 border-transparent transition-all">
+                    Simulasi Pinjaman
+                </button>
+            </div>
+        </div>
+
+        <!-- Header Khusus Cetak -->
+        <div class="hidden print-only mb-8 text-center border-b-2 border-slate-800 pb-4">
+            <h1 class="text-3xl font-extrabold text-slate-800">Proposal Proyeksi Keuangan Bisnis</h1>
+            <p class="text-slate-500 mt-2">Dihasilkan oleh BisnisPro Simulator</p>
+        </div>
+
+        <!-- ================= MODUL 1: BEP ================= -->
+        <div id="module-bep" class="fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                <!-- Form BEP -->
+                <div class="lg:col-span-4 space-y-6 no-print">
+                    <div class="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
+                        <form id="bep-form" class="space-y-6">
+                            <div class="group">
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Total Biaya Tetap</label>
+                                <div class="relative transition-all duration-300 group-focus-within:-translate-y-1">
+                                    <span class="absolute left-4 top-3 text-slate-400 font-bold">Rp</span>
+                                    <input type="number" id="fixedCost" required min="0" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-slate-800 font-semibold focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all">
+                                </div>
+                            </div>
+                            <div class="group">
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Biaya Variabel (Per Unit)</label>
+                                <div class="relative transition-all duration-300 group-focus-within:-translate-y-1">
+                                    <span class="absolute left-4 top-3 text-slate-400 font-bold">Rp</span>
+                                    <input type="number" id="variableCost" required min="0" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-slate-800 font-semibold focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all">
+                                </div>
+                            </div>
+                            <div class="group">
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Harga Jual (Per Unit)</label>
+                                <div class="relative transition-all duration-300 group-focus-within:-translate-y-1">
+                                    <span class="absolute left-4 top-3 text-slate-400 font-bold">Rp</span>
+                                    <input type="number" id="sellingPrice" required min="1" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 text-slate-800 font-semibold focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all transform hover:-translate-y-1 mt-4 text-lg">
+                                Kalkulasi BEP
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Hasil BEP -->
+                <div class="lg:col-span-8 space-y-8 hidden" id="bep-result-container">
+                    
+                    <!-- Aksi Ekspor (Disembunyikan saat cetak PDF) -->
+                    <div class="flex justify-end gap-3 no-print fade-in-up">
+                        <button onclick="exportBEPExcel()" class="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-5 py-2.5 rounded-xl font-bold transition-all border border-emerald-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Excel
+                        </button>
+                        <button onclick="window.print()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            Cetak PDF
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 print-avoid-break">
+                        <div class="bg-gradient-to-br from-indigo-500 to-blue-600 p-6 rounded-3xl text-white relative overflow-hidden">
+                            <p class="text-indigo-100 font-semibold mb-1 text-sm uppercase">Target BEP Unit</p>
+                            <h3 id="res-bep-unit" class="text-3xl font-extrabold mb-2">0 Unit</h3>
+                        </div>
+                        <div class="bg-gradient-to-br from-emerald-400 to-teal-500 p-6 rounded-3xl text-white relative overflow-hidden">
+                            <p class="text-emerald-50 font-semibold mb-1 text-sm uppercase">Target Pendapatan</p>
+                            <h3 id="res-bep-rupiah" class="text-3xl font-extrabold mb-2 truncate">Rp 0</h3>
+                        </div>
+                        <div class="bg-gradient-to-br from-amber-400 to-orange-500 p-6 rounded-3xl text-white relative overflow-hidden">
+                            <p class="text-amber-50 font-semibold mb-1 text-sm uppercase">Margin Kontribusi</p>
+                            <h3 id="res-margin" class="text-3xl font-extrabold mb-2 truncate">Rp 0</h3>
+                        </div>
+                    </div>
+
+                    <div id="loss-warning" class="hidden bg-rose-50 border-2 border-rose-100 text-rose-700 p-5 rounded-3xl flex items-start gap-4">
+                        <div>
+                            <p class="font-bold text-base mb-1">Kerugian Permanen!</p>
+                            <p class="text-sm">Harga jual lebih rendah dari biaya variabel. Bisnis tidak akan mencapai titik impas.</p>
+                        </div>
+                    </div>
+
+                    <div id="bep-chart-card" class="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 print-avoid-break">
+                        <h3 class="text-xl font-bold text-slate-800 mb-6">Grafik Persilangan (Break-Even)</h3>
+                        <div class="relative h-[350px] w-full"><canvas id="bepChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= MODUL 2: SIMULASI PINJAMAN ================= -->
+        <div id="module-loan" class="hidden fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                <!-- Form Pinjaman -->
+                <div class="lg:col-span-4 space-y-6 no-print">
+                    <div class="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
+                        <form id="loan-form" class="space-y-6">
+                            <div class="group">
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Plafon Pinjaman</label>
+                                <div class="relative transition-all duration-300 group-focus-within:-translate-y-1">
+                                    <span class="absolute left-4 top-3 text-slate-400 font-bold">Rp</span>
+                                    <input type="number" id="loanAmount" required min="1000000" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl pl-12 pr-4 py-3 font-semibold focus:bg-white focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="group">
+                                    <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tenor</label>
+                                    <div class="relative transition-all duration-300 group-focus-within:-translate-y-1">
+                                        <input type="number" id="loanTenure" required min="1" max="120" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl px-4 py-3 font-semibold outline-none transition-all">
+                                        <span class="absolute right-4 top-3 text-slate-400 font-bold text-sm">Bulan</span>
+                                    </div>
+                                </div>
+                                <div class="group">
+                                    <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Bunga/Thn</label>
+                                    <div class="relative transition-all duration-300 group-focus-within:-translate-y-1">
+                                        <input type="number" step="0.1" id="loanRate" required min="0.1" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl px-4 py-3 font-semibold outline-none transition-all">
+                                        <span class="absolute right-4 top-3 text-slate-400 font-bold text-sm">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="group">
+                                <label class="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Jenis Perhitungan</label>
+                                <select id="loanType" class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-2xl px-4 py-3 font-semibold outline-none transition-all cursor-pointer">
+                                    <option value="flat">Bunga Flat (Tetap)</option>
+                                    <option value="anuitas">Bunga Efektif (Anuitas)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg transition-all transform hover:-translate-y-1 mt-4 text-lg">
+                                Hitung Simulasi
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Hasil Pinjaman -->
+                <div class="lg:col-span-8 space-y-8 hidden" id="loan-result-container">
+                    
+                    <!-- Aksi Ekspor -->
+                    <div class="flex justify-end gap-3 no-print fade-in-up">
+                        <button onclick="exportLoanExcel()" class="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-5 py-2.5 rounded-xl font-bold transition-all border border-emerald-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            Unduh Excel
+                        </button>
+                        <button onclick="window.print()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            Cetak PDF
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 print-avoid-break">
+                        <div class="space-y-4">
+                            <div class="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                <div>
+                                    <p class="text-slate-500 text-xs font-bold uppercase">Angsuran / Bulan</p>
+                                    <h3 id="res-monthly" class="text-2xl font-extrabold text-slate-800">Rp 0</h3>
+                                    <p id="res-monthly-note" class="text-xs text-slate-400 mt-1">Tetap selama periode</p>
+                                </div>
+                            </div>
+                            <div class="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                <div>
+                                    <p class="text-slate-500 text-xs font-bold uppercase">Total Beban Bunga</p>
+                                    <h3 id="res-total-interest" class="text-2xl font-extrabold text-rose-500">Rp 0</h3>
+                                </div>
+                            </div>
+                            <div class="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                <div>
+                                    <p class="text-slate-500 text-xs font-bold uppercase">Total Pengembalian</p>
+                                    <h3 id="res-total-payment" class="text-2xl font-extrabold text-emerald-600">Rp 0</h3>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-3xl border border-slate-100 flex flex-col items-center relative shadow-sm">
+                            <h3 class="text-sm font-bold text-slate-600 uppercase">Komposisi Pengembalian</h3>
+                            <div class="relative h-[200px] w-full mt-4">
+                                <canvas id="loanChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Amortisasi -->
+                    <div class="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h3 class="text-lg font-bold text-slate-800">Tabel Jadwal Angsuran (Amortisasi)</h3>
+                        </div>
+                        <div class="table-scroll overflow-x-auto max-h-[400px] overflow-y-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-white sticky top-0 shadow-sm z-10">
+                                    <tr>
+                                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">Bulan</th>
+                                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 text-right">Pokok</th>
+                                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 text-right">Bunga</th>
+                                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 text-right">Angsuran</th>
+                                        <th class="py-4 px-6 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 text-right">Sisa Saldo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="amortization-body" class="text-sm divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+    <!-- Footer Copyright -->
+    <footer class="w-full py-6 mt-auto border-t border-slate-200/60 bg-slate-50/30">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-sm font-medium text-slate-500">
+                &copy; <script>document.write(new Date().getFullYear())</script> BisnisPro Up. 
+                Dibuat oleh <span class="font-bold text-indigo-600">Yulianto</span>.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // ================= VARIABEL GLOBAL PENYIMPAN DATA EKSPOR =================
+        let currentBEPData = {};
+        let currentLoanSchedule = [];
+        const formatIDR = (number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(number);
+
+        // ================= TAB SWITCHING =================
+        function switchTab(tabId) {
+            document.getElementById('module-bep').classList.add('hidden');
+            document.getElementById('module-loan').classList.add('hidden');
+            document.getElementById('btn-tab-bep').className = "pb-3 px-2 md:px-4 font-semibold text-slate-400 hover:text-slate-600 border-b-4 border-transparent transition-all";
+            document.getElementById('btn-tab-loan').className = "pb-3 px-2 md:px-4 font-semibold text-slate-400 hover:text-slate-600 border-b-4 border-transparent transition-all";
+            
+            if (tabId === 'bep') {
+                document.getElementById('module-bep').classList.remove('hidden');
+                document.getElementById('btn-tab-bep').className = "pb-3 px-2 md:px-4 font-bold text-indigo-600 border-b-4 border-indigo-600 transition-all";
+            } else {
+                document.getElementById('module-loan').classList.remove('hidden');
+                document.getElementById('btn-tab-loan').className = "pb-3 px-2 md:px-4 font-bold text-emerald-600 border-b-4 border-emerald-600 transition-all";
+            }
+        }
+
+        // ================= LOGIKA MODUL 1: BEP =================
+        let bepChartInstance = null;
+        document.getElementById('bep-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fc = parseFloat(document.getElementById('fixedCost').value) || 0;
+            const vc = parseFloat(document.getElementById('variableCost').value) || 0;
+            const price = parseFloat(document.getElementById('sellingPrice').value) || 0;
+
+            document.getElementById('bep-result-container').classList.remove('hidden');
+
+            const cm = price - vc;
+            const warningEl = document.getElementById('loss-warning');
+            const chartCard = document.getElementById('bep-chart-card');
+            
+            if (cm <= 0) {
+                warningEl.classList.remove('hidden');
+                chartCard.classList.add('hidden'); 
+                document.getElementById('res-bep-unit').innerText = "Rugi";
+                document.getElementById('res-bep-rupiah').innerText = "Rugi";
+                if (bepChartInstance) bepChartInstance.destroy();
+                return;
+            } else {
+                warningEl.classList.add('hidden');
+                chartCard.classList.remove('hidden');
+            }
+
+            const bepUnit = Math.ceil(fc / cm);
+            const bepRupiah = bepUnit * price;
+
+            document.getElementById('res-bep-unit').innerText = bepUnit.toLocaleString('id-ID') + " Unit";
+            document.getElementById('res-bep-rupiah').innerText = formatIDR(bepRupiah);
+            document.getElementById('res-margin').innerText = formatIDR(cm);
+
+            // Simpan data untuk Excel
+            currentBEPData = { "Biaya Tetap": fc, "Biaya Variabel": vc, "Harga Jual": price, "BEP (Unit)": bepUnit, "BEP (Rupiah)": bepRupiah, "Margin per Unit": cm };
+            
+            renderBepChart(fc, vc, price, bepUnit);
+        });
+
+        function renderBepChart(fc, vc, price, bepUnit) {
+            const ctx = document.getElementById('bepChart').getContext('2d');
+            let labels = [], dataFixed = [], dataTotal = [], dataRev = [];
+            for (let i = 0; i <= bepUnit * 2.5; i += Math.ceil(bepUnit * 2.5 / 10)) {
+                labels.push(i); dataFixed.push(fc); dataTotal.push(fc + (vc * i)); dataRev.push(price * i);
+            }
+            if (bepChartInstance) bepChartInstance.destroy();
+            bepChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: labels, datasets: [
+                    { label: 'Pendapatan', data: dataRev, borderColor: '#10b981', borderWidth: 3, tension: 0.4 },
+                    { label: 'Total Biaya', data: dataTotal, borderColor: '#f43f5e', borderDash: [6, 6], borderWidth: 3, tension: 0.4 },
+                    { label: 'Biaya Tetap', data: dataFixed, borderColor: '#94a3b8', borderWidth: 2, tension: 0 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        // ================= LOGIKA MODUL 2: PINJAMAN =================
+        let loanChartInstance = null;
+        document.getElementById('loan-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const P = parseFloat(document.getElementById('loanAmount').value);
+            const t = parseInt(document.getElementById('loanTenure').value);
+            const r = parseFloat(document.getElementById('loanRate').value) / 100;
+            const type = document.getElementById('loanType').value;
+
+            document.getElementById('loan-result-container').classList.remove('hidden');
+            const tbody = document.getElementById('amortization-body');
+            tbody.innerHTML = '';
+            currentLoanSchedule = [];
+
+            let totalInterest = 0, monthlyLabel = "", schedule = [];
+
+            if (type === 'flat') {
+                const totalBunga = P * r * (t / 12);
+                const cicilan = (P / t) + (totalBunga / t);
+                totalInterest = totalBunga; monthlyLabel = formatIDR(cicilan);
+                document.getElementById('res-monthly-note').innerText = "Angsuran Tetap (Flat)";
+                
+                let sisa = P;
+                for (let i = 1; i <= t; i++) {
+                    sisa -= P / t;
+                    schedule.push({ "Bulan Ke": i, "Angsuran Pokok": P / t, "Angsuran Bunga": totalBunga / t, "Total Cicilan": cicilan, "Sisa Saldo": Math.max(0, sisa) });
+                }
+            } else {
+                const mr = r / 12;
+                const cicilan = P * (mr * Math.pow(1 + mr, t)) / (Math.pow(1 + mr, t) - 1);
+                let sisa = P;
+                for (let i = 1; i <= t; i++) {
+                    let bunga = sisa * mr; let pokok = cicilan - bunga;
+                    sisa -= pokok; totalInterest += bunga;
+                    schedule.push({ "Bulan Ke": i, "Angsuran Pokok": pokok, "Angsuran Bunga": bunga, "Total Cicilan": cicilan, "Sisa Saldo": Math.max(0, sisa) });
+                }
+                monthlyLabel = formatIDR(cicilan);
+                document.getElementById('res-monthly-note').innerText = "Angsuran Tetap (Anuitas)";
+            }
+
+            currentLoanSchedule = schedule;
+
+            document.getElementById('res-monthly').innerText = monthlyLabel;
+            document.getElementById('res-total-interest').innerText = formatIDR(totalInterest);
+            document.getElementById('res-total-payment').innerText = formatIDR(P + totalInterest);
+
+            schedule.forEach(row => {
+                tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="py-3 px-6 border-b border-slate-100 font-medium">${row["Bulan Ke"]}</td><td class="py-3 px-6 border-b border-slate-100 text-right text-emerald-600">${formatIDR(row["Angsuran Pokok"])}</td><td class="py-3 px-6 border-b border-slate-100 text-right text-rose-500">${formatIDR(row["Angsuran Bunga"])}</td><td class="py-3 px-6 border-b border-slate-100 text-right font-bold">${formatIDR(row["Total Cicilan"])}</td><td class="py-3 px-6 border-b border-slate-100 text-right font-medium text-slate-500">${formatIDR(row["Sisa Saldo"])}</td></tr>`;
+            });
+
+            if (loanChartInstance) loanChartInstance.destroy();
+            loanChartInstance = new Chart(document.getElementById('loanChart').getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: ['Plafon Pokok', 'Total Bunga'], datasets: [{ data: [P, totalInterest], backgroundColor: ['#10b981', '#f43f5e'] }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '75%' }
+            });
+        });
+
+        // ================= FUNGSI EXPORT EXCEL (SHEETJS) =================
+        function exportBEPExcel() {
+            if(!currentBEPData["BEP (Unit)"]) return alert("Hitung BEP terlebih dahulu!");
+            const ws = XLSX.utils.json_to_sheet([currentBEPData]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Proyeksi_BEP");
+            XLSX.writeFile(wb, "Laporan_BEP_BisnisPro.xlsx");
+        }
+
+        function exportLoanExcel() {
+            if(currentLoanSchedule.length === 0) return alert("Hitung Simulasi Pinjaman terlebih dahulu!");
+            const ws = XLSX.utils.json_to_sheet(currentLoanSchedule);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Jadwal_Amortisasi");
+            XLSX.writeFile(wb, "Laporan_Pinjaman_BisnisPro.xlsx");
+        }
+    </script>
+</body>
+</html>
